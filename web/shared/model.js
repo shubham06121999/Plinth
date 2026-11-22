@@ -1,4 +1,4 @@
-// What a project is. Shared by the server, the studio and the renderer.
+// What a project is. api/Store.cs mirrors the blank project and the editable fields.
 
 export const TYPES = {
   apartments: 'Apartments',

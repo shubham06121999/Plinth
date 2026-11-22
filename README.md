@@ -4,7 +4,7 @@ Turn the details of an upcoming real-estate project into a narrated film, views 
 
 ## Start
 
-Needs Node 20 or later, ffmpeg, and Chrome, Edge, Brave or Chromium.
+Needs the .NET 8 SDK, Node 20 or later, ffmpeg, and Chrome, Edge, Brave or Chromium.
 
     npm install
     npm start
@@ -40,9 +40,12 @@ Copy `.env.example` to `.env`, set `OPENAI_API_KEY` and restart. A "Make photore
 
 ## Where things are
 
-- `web/shared/building.js`, `world.js`: the 3D model, surroundings, light and cameras
-- `web/shared/story.js`: details to script
-- `web/shared/film.js`: draws any moment of the film; used by both the preview and the final video
-- `web/shared/shots.js`, `reel.js`, `reelfilm.js`: reel pictures, script and drawing
-- `server/render.js`: video. `sound.js`, `voice-worker.js`, `music-worker.js`: sound. `footage.js`: image model
+- `api/`: the ASP.NET Core backend
+  - `Program.cs`: the API. `Store.cs`: projects. `Jobs.cs`: the render queue
+  - `Renderer.cs`, `Chrome.cs`: films, photos and posters, drawn in headless Chrome and encoded by ffmpeg
+  - `Sound.cs`, `Music.cs`: narration, music, effects and the final mix. `Footage.cs`: the image model
+- `workers/`: two small Node programs for the offline voice and picture depth
+- `web/`: the studio. `web/shared/` holds the 3D model, the script rules and the drawing code, used by both the preview and the finished video. The backend asks `logic.html` for the script instead of keeping a second copy
 - `data/`: your projects. Back this folder up.
+
+To move to a newer .NET, install its SDK and change `TargetFramework` in `api/Plinth.Api.csproj`.

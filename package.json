@@ -5,9 +5,9 @@
   "description": "Turn the details of an upcoming real-estate project into a marketing film, visuals and posters.",
   "type": "module",
   "scripts": {
-    "start": "node --env-file-if-exists=.env server/index.js",
-    "sample": "node server/sample.js",
-    "setup-ai": "bash server/setup-ai.sh"
+    "start": "dotnet run --project api -c Release",
+    "sample": "dotnet run --project api -c Release -- sample",
+    "setup-ai": "bash workers/setup-ai.sh"
   },
   "engines": {
     "node": ">=20"
@@ -17,9 +17,7 @@
     "@fontsource-variable/big-shoulders-display": "^5.3.0",
     "@fontsource/great-vibes": "^5.3.0",
     "@fontsource/marcellus": "^5.3.0",
-    "express": "^5.3.0",
     "kokoro-js": "^1.2.1",
-    "puppeteer-core": "^25.18.1",
     "three": "^0.187.0"
   }
 }

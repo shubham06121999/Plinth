@@ -4,3 +4,5 @@ data/
 .DS_Store
 models/
 ai/
+api/bin/
+api/obj/
