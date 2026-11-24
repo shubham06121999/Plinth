@@ -59,6 +59,7 @@ public sealed class JobQueue(Renderer renderer, ILogger<JobQueue> log) : Backgro
     }
 
     public void StopProject(string project) { foreach (var j in For(project).ToList()) Stop(j.Id); }
+    public void StopAll() { foreach (var j in all.Values.ToList()) Stop(j.Id); }
 
     protected override async Task ExecuteAsync(CancellationToken stopping)
     {

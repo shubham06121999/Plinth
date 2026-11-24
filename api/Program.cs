@@ -25,6 +25,8 @@ builder.Services.AddHostedService(s => s.GetRequiredService<JobQueue>());
 builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(6));
 var app = builder.Build();
 var jobs = app.Services.GetRequiredService<JobQueue>();
+// Stopping the app (Ctrl+C) cancels the render first, which closes its Chrome.
+app.Lifetime.ApplicationStopping.Register(jobs.StopAll);
 
 // Every failure reaches the browser as { error }.
 app.Use(async (ctx, next) =>

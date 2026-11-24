@@ -32,7 +32,13 @@ public sealed class Chrome : IAsyncDisposable
     IPage? logic;
 
     Chrome(IBrowser b, CancellationToken ct) { browser = b; reg = ct.Register(() => _ = Close()); }
-    async Task Close() { try { await browser.CloseAsync(); } catch { /* already closed */ } }
+    // A graceful close can hang while a page is mid-render, so it gets a few seconds and then the
+    // process is killed. A cancelled render must never leave a Chrome running.
+    async Task Close()
+    {
+        try { await browser.CloseAsync().WaitAsync(TimeSpan.FromSeconds(4)); } catch { /* hung or already closed */ }
+        try { if (browser.Process is { HasExited: false } proc) proc.Kill(true); } catch { /* already gone */ }
+    }
     public async ValueTask DisposeAsync() { await reg.DisposeAsync(); await Close(); await browser.DisposeAsync(); }
 
     public static async Task<Chrome> Open(CancellationToken ct)

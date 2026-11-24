@@ -47,6 +47,16 @@ const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStar
 
 let status = { voices: [] }, P = null, film = null, stop = () => {};
 
+// Deleting removes the project folder: details, uploads, generated pictures and every film.
+async function deleteProject(p) {
+  const n = p.outputs.length, name = (p.name || '').trim() || 'this untitled project';
+  const made = n ? ` and the ${n} ${n === 1 ? 'thing' : 'things'} made for it (films, photos and posters)` : '';
+  if (!(await ask(`Delete ${name}${made}? Its uploads and generated pictures go too. This cannot be undone.`, 'Delete project'))) return false;
+  await api('/projects/' + p.id, { method: 'DELETE' });
+  toast(`Deleted ${name}`);
+  return true;
+}
+
 // ---- projects ------------------------------------------------------------------
 async function home() {
   document.title = 'Plinth';
@@ -65,7 +75,8 @@ async function home() {
         if (pic) ph.append(h('img', { src: `/files/${p.id}/out/${pic}`, alt: '', loading: 'lazy' }));
         else ph.innerHTML = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 56h52M14 56V20h16v36M36 56V8h14v48M18 26h8M18 34h8M18 42h8M40 16h6M40 24h6M40 32h6M40 40h6"/></svg>';
         const n = p.outputs.length;
-        return h('a.card', { href: '#' + p.id }, ph, h('div.txt', {}, h('b', {}, p.name || 'Untitled project'), h('span', {}, [[p.locality, p.city].filter(Boolean).join(', '), n ? `${n} made` : 'Nothing made yet'].filter(Boolean).join(' · '))));
+        return h('div.cardwrap', {}, h('a.card', { href: '#' + p.id }, ph, h('div.txt', {}, h('b', {}, p.name || 'Untitled project'), h('span', {}, [[p.locality, p.city].filter(Boolean).join(', '), n ? `${n} made` : 'Nothing made yet'].filter(Boolean).join(' · ')))),
+          h('button.cdel', { 'aria-label': `Delete ${p.name || 'untitled project'}`, title: 'Delete project', onclick: guard(async () => { if (await deleteProject(p)) home(); }) }, h('span', { 'aria-hidden': 'true' }, '×'), ' Delete'));
       }),
       h('button.card.new', { onclick: create }, h('i', {}, '+'), list.length ? 'New project' : 'Start your first project'))));
 }
@@ -75,7 +86,7 @@ async function studio(id) {
   P = await api('/projects/' + id);
   // Projects from before reels existed.
   P.footage ||= {}; P.voiceover ||= {}; P.film = { style: 'reel', gold: '#FFD21F', viewNote: '', lookNote: '', ...P.film, reel: P.film.reel || {}, scenes: P.film.scenes || {} };
-  let footOpen = false, tab = 'project', dirty = false, saving = null, saveT, redrawT, playing = false, time = 2.4, last = 0, raf = 0, alive = true, jobT, sceneNow = -1, jobs = [];
+  let gone = false, footOpen = false, tab = 'project', dirty = false, saving = null, saveT, redrawT, playing = false, time = 2.4, last = 0, raf = 0, alive = true, jobT, sceneNow = -1, jobs = [];
 
   const stateEl = h('span.state', {}, 'Saved'), nameEl = h('span.pname');
   const pane = h('div.pane'), strip = h('div.strip', { role: 'slider', tabIndex: 0, 'aria-label': 'Film position' }), head = h('u');
@@ -97,6 +108,7 @@ async function studio(id) {
   const fields = () => ({ ...Object.fromEntries(EDITABLE.map((k) => [k, P[k]])), photos: P.photos.map(({ id, caption, inFilm }) => ({ id, caption, inFilm })) });
   async function flush() {
     clearTimeout(saveT);
+    if (gone) return;
     if (saving) await saving;
     if (!dirty) return;
     dirty = false;
@@ -245,6 +257,9 @@ async function studio(id) {
       block(text('Phone', 'phone', 3), text('Website', 'website', 3), text('Email', 'email', 6)),
       h('h2', {}, 'Brand'),
       block(color('Brand colour', P, 'brand', 2), h('div.cell.w4', {}, h('span', {}, 'Logo'), logoRow())),
+      h('h2.danger-h', {}, 'Delete project'),
+      h('p.note', { style: { margin: '0 0 12px' } }, 'Removes this project, its uploads, its generated pictures and everything made from it. This cannot be undone.'),
+      h('button.btn.danger', { onclick: guard(async () => { await flush().catch(() => {}); if (!(await deleteProject(P))) return; gone = true; location.hash = ''; }) }, 'Delete project'),
     ],
     homes: () => [
       h('h2', {}, P.type === 'commercial' ? 'Spaces' : 'Homes'),
@@ -543,7 +558,7 @@ async function studio(id) {
     alive = false; cancelAnimationFrame(raf); clearTimeout(jobT); clearTimeout(redrawT);
     removeEventListener('resize', onResize); removeEventListener('beforeunload', onLeave);
     film?.world.dispose(); film = null;
-    return flush().catch(() => {});
+    return gone ? Promise.resolve() : flush().catch(() => {});
   };
 
   renderTab(); drawWall(); poll();

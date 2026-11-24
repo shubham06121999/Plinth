@@ -36,8 +36,16 @@ public static class Store
     static bool OkId(string id) => Regex.IsMatch(id, @"\A[a-f0-9]{12}\z");
 
     public static string Dir(string id) => OkId(id) ? Path.Combine(Paths.Data, id) : throw new AppError("Project not found", 404);
-    public static string Media(string id) { var d = Path.Combine(Dir(id), "media"); Directory.CreateDirectory(d); return d; }
-    public static string Out(string id) { var d = Path.Combine(Dir(id), "out"); Directory.CreateDirectory(d); return d; }
+    // Never recreates the folder of a deleted project: a render that was still running fails instead.
+    public static string Media(string id) => Box(id, "media");
+    public static string Out(string id) => Box(id, "out");
+    static string Box(string id, string box)
+    {
+        if (!File.Exists(FileOf(id))) throw new AppError("Project not found", 404);
+        var d = Path.Combine(Dir(id), box);
+        Directory.CreateDirectory(d);
+        return d;
+    }
     static string FileOf(string id) => Path.Combine(Dir(id), "project.json");
 
     public static JsonObject Get(string id)
@@ -66,7 +74,7 @@ public static class Store
             var p = Blank();
             p["id"] = NewId();
             p["createdAt"] = Now();
-            Media(p.Str("id")); Out(p.Str("id"));
+            Directory.CreateDirectory(Path.Combine(Dir(p.Str("id")), "media")); Directory.CreateDirectory(Path.Combine(Dir(p.Str("id")), "out"));
             return Save(Apply(p, fields ?? []));
         }
     }

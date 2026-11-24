@@ -214,3 +214,15 @@ dialog.rec { width: min(760px, 94vw); padding: 26px 28px 24px; }
 .rec .rclock { font-variant-numeric: tabular-nums; min-width: 4ch; color: var(--mute); }
 .rec .rnote { color: var(--mute); font-size: 14px; min-height: 2.6em; margin: 12px 0 14px; }
 .rec .rbtns { display: flex; gap: 10px; justify-content: flex-end; } .rec .rgo { min-width: 120px; }
+
+.cardwrap { position: relative; display: flex; flex-direction: column; }
+.cardwrap .card { flex: 1; }
+.cdel { position: absolute; top: 8px; right: 8px; border: 0; background: rgba(15,24,29,.78); color: #fff; font-size: 13px; padding: 5px 10px 5px 8px; border-radius: 2px; opacity: 0; transition: opacity .12s; }
+.cardwrap:hover .cdel, .cdel:focus-visible { opacity: 1; }
+.cdel:hover { background: var(--mark-deep); }
+.cdel span { font-size: 15px; }
+@media (hover: none) { .cdel { opacity: 1; } }
+.danger-h { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.btn.danger { border-color: var(--mark-deep); color: var(--mark-deep); }
+.btn.danger:hover { background: var(--mark-deep); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .cdel { transition: none; } }
