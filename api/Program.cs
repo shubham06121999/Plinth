@@ -162,6 +162,13 @@ api.MapPost("/projects/{id}/footage/{key}", async (string id, string key, string
     }
     return Results.Json(Store.Update(id, p => { var f = p.Obj("footage"); Footage.DropFiles(id, f[key] as JsonObject); f[key] = rec; }));
 });
+// Real voices, line by line.
+api.MapPost("/projects/{id}/voice/{key}", async (string id, string key, string? name, string? say, string? lengths, HttpContext c) =>
+{
+    var lens = (lengths ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var n) ? Math.Clamp(n, 0, 2000) : 0).Take(20).ToArray();
+    return Results.Json(await Voiceover.Save(id, key, name, await Raw(c, 80), say ?? "", lens));
+});
+api.MapDelete("/projects/{id}/voice/{key}", (string id, string key) => Results.Json(Voiceover.Remove(id, key)));
 api.MapDelete("/projects/{id}/footage/{key}", (string id, string key) => Results.Json(Store.Update(id, p => { var f = p.Obj("footage"); Footage.DropFiles(id, f[key] as JsonObject); f.Remove(key); })));
 
 // ---- making things ----------------------------------------------------------------

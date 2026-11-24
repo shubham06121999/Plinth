@@ -55,7 +55,7 @@ export const blankProject = () => ({
   building: { towers: 2, floors: 18, style: 'balcony', wall: '#EFEAE0', trim: '#5B4636', setting: 'city', pool: true, podium: true },
   film: { style: 'reel', format: '9:16', theme: 'modern', light: 'arc', voice: 'kokoro:af_heart', music: 'uplift', scenes: {}, reel: {}, gold: '#FFD21F', viewNote: '', lookNote: '' },
   posterPhoto: '',
-  photos: [], logo: null, track: null, outputs: [], footage: {},
+  photos: [], logo: null, track: null, outputs: [], footage: {}, voiceover: {},
 });
 
 // What has to be there before a film says anything useful.

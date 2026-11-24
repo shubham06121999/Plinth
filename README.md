@@ -30,9 +30,20 @@ This downloads about 6 GB once (Apple Silicon only): FLUX.2-klein-4B 4-bit, Dept
 
 Generated pictures can show things the project will not have. Check each one, and keep the "Artist's impression" label.
 
+## Your own voice
+
+Under Film, set Voice to **Your own voice, recorded or uploaded**. Then either:
+
+- **Record:** press **Record all lines**. Each line appears large, like a teleprompter. Press the space bar to start and again to stop, and the next line comes up. Any line can be recorded again on its own.
+- **Upload:** use **Upload** next to a line, for example a file from your phone or from a voice artist. Use one file per line.
+
+Plinth takes out rumble and steady background hiss, evens the level of every line and trims the silence. It keeps the character of the voice. The captions follow your pace, and on lines shown over several cards each card changes where you pause. Lines without a recording are silent. If you change a line after recording it, Plinth asks you to record it again.
+
+For the best sound, record in a small room with soft furnishings, about a hand's width from the microphone. A wired headset or a phone held close sounds better than a laptop's built-in microphone.
+
 ## Voices and music
 
-The offline voices speak English. Mac voices, including Hindi, are also listed. Music and effects are composed by the app, so they need no licence. You can use your own track. Finished sound is set to about -14 LUFS, the level social apps expect.
+The offline AI voices speak English. Mac voices, including Hindi, are also listed. Music and effects are composed by the app, so they need no licence. You can use your own track. Finished sound is set to about -14 LUFS, the level social apps expect.
 
 ## Photoreal images (optional)
 

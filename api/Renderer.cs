@@ -85,7 +85,7 @@ public sealed class Renderer
         {
             job.Step = "Recording the narration";
             var lines = (await chrome.Ask(reel ? "reelSpeech" : "filmSpeech", reel ? [p] : [p, format]))!.AsArray();
-            var voice = await Sound.Speak(p.Obj("film").Str("voice", "none"), lines, tmp, ct);
+            var voice = await Sound.Speak(p, p.Obj("film").Str("voice", "none"), lines, tmp, ct);
 
             JsonObject plan, timing = [], durations = [];
             JsonArray cues = [];

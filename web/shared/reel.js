@@ -80,6 +80,8 @@ export function beats(p) {
   });
 }
 export const shotsNeeded = (p) => [...new Set(beats(p).filter((b) => b.on).flatMap((b) => b.shots))];
+// Timing of the lines the person recorded, in the shape the plan takes.
+export const ownTiming = (p) => (p.film.voice === 'own' ? Object.fromEntries(Object.entries(p.voiceover || {}).map(([k, v]) => [k, { dur: v.dur, parts: v.parts }])) : {});
 export const sayParts = (say) => say.split('|').map((x) => spoken(x).replace(/\b(?!BHK|RERA|NRI|IT\b)[A-Z]{4,}\b/g, (m) => m[0] + m.slice(1).toLowerCase()).replace(/(\d),(?=\d)/g, '$1')).filter(Boolean);
 
 function parseCard(text) {
@@ -94,7 +96,8 @@ export function reelPlan(p, { format = p.film.format, timing = {} } = {}) {
   let at = 0, seq = 0;
   for (const b of beats(p)) {
     if (!b.on) continue;
-    const parts = sayParts(b.say), voiced = p.film.voice !== 'none' && parts.length;
+    const parts = sayParts(b.say), own = p.film.voice === 'own';
+    const voiced = own ? !!timing[b.key] : p.film.voice !== 'none' && parts.length;
     const est = parts.map((x) => Math.max(0.7, x.split(/\s+/).length / 2.55 + 0.2));
     const tm = timing[b.key];
     const voice = tm ? tm.dur : voiced ? est.reduce((a, x) => a + x, 0) : 0;

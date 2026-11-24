@@ -3,7 +3,7 @@ import { autoScenes } from './shared/story.js';
 import { loadFonts, FACES } from './shared/film.js';
 import { Reel } from './shared/reelfilm.js';
 import { Film } from './shared/film.js';
-import { beats, shotsNeeded, SHOTS } from './shared/reel.js';
+import { beats, shotsNeeded, SHOTS, ownTiming } from './shared/reel.js';
 
 // ---- small helpers -----------------------------------------------------------
 function h(tag, props, ...kids) {
@@ -74,7 +74,7 @@ async function home() {
 async function studio(id) {
   P = await api('/projects/' + id);
   // Projects from before reels existed.
-  P.footage ||= {}; P.film = { style: 'reel', gold: '#FFD21F', viewNote: '', lookNote: '', ...P.film, reel: P.film.reel || {}, scenes: P.film.scenes || {} };
+  P.footage ||= {}; P.voiceover ||= {}; P.film = { style: 'reel', gold: '#FFD21F', viewNote: '', lookNote: '', ...P.film, reel: P.film.reel || {}, scenes: P.film.scenes || {} };
   let footOpen = false, tab = 'project', dirty = false, saving = null, saveT, redrawT, playing = false, time = 2.4, last = 0, raf = 0, alive = true, jobT, sceneNow = -1, jobs = [];
 
   const stateEl = h('span.state', {}, 'Saved'), nameEl = h('span.pname');
@@ -116,6 +116,7 @@ async function studio(id) {
     P.photos = r.photos.map((x) => mine.get(x.id) || x);
     for (const k of ['logo', 'track', 'outputs']) P[k] = r[k];
     P.footage = r.footage || {};
+    P.voiceover = r.voiceover || {};
     if (r.film.music === 'upload' && r.track && !P.trackSeen) P.film.music = 'upload';
     if (!P.photos.some((x) => x.id === P.posterPhoto)) P.posterPhoto = '';
   }
@@ -133,7 +134,8 @@ async function studio(id) {
     makeFilm();
     await film.load(P);
     if (!alive) return;
-    film.setPlan();
+    const own = ownTiming(P);
+    film.setPlan({ timing: own, durations: Object.fromEntries(Object.entries(own).map(([k, v]) => [k, v.dur])) });
     time = Math.min(time, film.plan.total - 0.05);
     sceneNow = -2; fitCanvas(); drawStrip(); paint();
   }
@@ -302,6 +304,7 @@ async function studio(id) {
         reel ? null : h('h2', {}, 'Light'), reel ? null : pick(P.film, 'light', LIGHTS, 4),
         h('h2', {}, 'Sound'), block(select('Voice', P.film, 'voice', voices, 3), select('Music', P.film, 'music', music, 3)),
         track, h('button.link', { onclick: () => track.click() }, P.track ? 'Replace your track' : 'Use your own track'),
+        P.film.voice === 'own' ? ownIntro() : null,
         P.film.voice === 'Lekha' ? h('p.note', {}, 'Lekha reads Hindi. The lines below are drafted in English, so rewrite what is spoken in Hindi.') : null,
         h('h2', {}, 'Script'),
         h('p.note', { style: { margin: '0 0 12px' } }, reel ? 'Drafted from your details. The first box is what is spoken. The second is what appears: *gold*, ~handwritten~, (small). A | starts a new card.' : 'Drafted from your details. Change any line, or switch a scene off to shorten the film.'),
@@ -332,11 +335,93 @@ async function studio(id) {
       return h(`div.beat${on ? '' : '.off'}`, {},
         h('div.top', {}, h('label', {}, h('input', { type: 'checkbox', checked: on, onchange: (e) => { o.on = e.target.checked; touch(); fill(); } }), s.title),
           edited ? h('button.link', { onclick: () => { delete o.head; delete o.say; touch(); fill(); } }, 'Use the draft') : null),
-        on ? h('div.f', {}, h('input', { type: 'text', value: o.head ?? '', placeholder: s.head || (s.stats ? 'Headline (optional)' : 'No headline'), 'aria-label': 'Headline', oninput: (e) => { o.head = e.target.value; touch(); }, onfocus: () => seekTo(s.key) }), say_) : null);
+        on ? h('div.f', {}, h('input', { type: 'text', value: o.head ?? '', placeholder: s.head || (s.stats ? 'Headline (optional)' : 'No headline'), 'aria-label': 'Headline', oninput: (e) => { o.head = e.target.value; touch(); }, onfocus: () => seekTo(s.key) }), say_, voiceRow(s.key, () => o.say ?? s.say, s.title, fill)) : null);
     }));
     fill();
     return box;
   }
+  // ---- your own voice -----------------------------------------------------------
+  const spokenLines = () => (P.film.style === 'reel'
+    ? beats(P).filter((b) => b.on && b.say.trim()).map((b) => ({ key: b.key, title: b.title, say: () => b.say }))
+    : autoScenes(P).filter((s) => P.film.scenes[s.key]?.on !== false).map((s) => ({ key: s.key, title: s.title, say: () => P.film.scenes[s.key]?.say ?? s.say })).filter((s) => s.say().trim()));
+  const lengths = (say) => say.split('|').map((x) => x.trim().length).filter(Boolean).join(',');
+  async function saveVoice(key, say, blob, name) {
+    await flush();
+    adopt(await api(`/projects/${id}/voice/${key}?${new URLSearchParams({ name, say, lengths: lengths(say) })}`, { method: 'POST', body: blob }));
+    await refresh();
+  }
+  function ownIntro() {
+    const lines = spokenLines(), done = lines.filter((l) => P.voiceover[l.key]).length;
+    return [h('p.note', {}, `${done} of ${lines.length} lines recorded. Read each line in your own words and pace; the captions follow your timing. A quiet room with soft furnishings sounds best. Lines without a recording are silent.`),
+      h('div', { style: { display: 'flex', gap: '10px', marginTop: '10px' } }, h('button.btn.solid', { onclick: guard(() => record(lines, Math.max(0, lines.findIndex((l) => !P.voiceover[l.key])))) }, done ? 'Record the rest' : 'Record all lines'))];
+  }
+  function voiceRow(key, say, title, fill) {
+    if (P.film.voice !== 'own' || !say().trim()) return null;
+    const v = P.voiceover[key], input = files('audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm,.caf', false, guard(async ([f]) => { if (!f) return; say_.textContent = 'Cleaning up'; await saveVoice(key, say(), f, f.name); fill(); renderTab(); }));
+    const say_ = h('span.vs', {}, v ? `Recorded, ${v.dur.toFixed(1)} s` : 'Not recorded');
+    const stale = v && v.say.trim() !== say().trim();
+    return h('div.vo', {}, h('span.dot' + (v ? '.on' : '')), say_, input,
+      h('button.link', { onclick: guard(() => { const i = spokenLines().findIndex((l) => l.key === key); return record(spokenLines(), Math.max(0, i), true); }) }, v ? 'Record again' : 'Record'),
+      h('button.link', { onclick: () => input.click() }, 'Upload'),
+      v ? h('button.link', { onclick: () => { const a = new Audio(`/files/${id}/media/${v.file}`); a.play(); } }, 'Play') : null,
+      v ? h('button.link', { onclick: guard(async () => { if (!(await ask(`Delete your recording of “${title}”?`, 'Delete'))) return; adopt(await api(`/projects/${id}/voice/${key}`, { method: 'DELETE' })); await refresh(); fill(); renderTab(); }) }, 'Delete') : null,
+      stale ? h('p.warn-line', {}, 'This line changed after you recorded it. Record it again so the voice matches the words.') : null);
+  }
+  // A teleprompter: one line at a time, large, with a level meter.
+  async function record(lines, start = 0, single = false) {
+    if (!lines.length) throw new Error('There are no spoken lines to record.');
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('This browser cannot record. Use Chrome, Edge or Safari, or upload recordings instead.');
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } }); }
+    catch (e) { throw new Error(e.name === 'NotAllowedError' ? 'Plinth needs permission to use the microphone. Allow it in the browser’s address bar, then try again.' : 'No microphone was found.'); }
+    setPlay(false);
+    const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
+    const ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 2048; ac.createMediaStreamSource(stream).connect(an);
+    let i = start, rec = null, chunks = [], t0 = 0, raf2 = 0, busy = false;
+    const meter = h('canvas.meter', { width: 600, height: 36 }), head = h('div.rhead'), line = h('p.rline'), note = h('p.rnote'), clock_ = h('span.rclock');
+    const go = h('button.btn.solid.rgo'), back = h('button.btn', { onclick: () => step(-1) }, 'Back'), skip = h('button.btn', { onclick: () => step(1) }, 'Skip');
+    const close = h('button.link', { onclick: () => d.close() }, 'Close');
+    const d = h('dialog.rec', { onclose: () => { cancelAnimationFrame(raf2); if (rec?.state === 'recording') { rec.onstop = null; rec.stop(); } stream.getTracks().forEach((t) => t.stop()); ac.close(); d.remove(); renderTab(); } },
+      h('div.rtop', {}, head, close), line, h('div.rbar', {}, meter, clock_), note, h('div.rbtns', {}, back, skip, go));
+    const show = () => {
+      const l = lines[i], v = P.voiceover[l.key];
+      head.textContent = `Line ${i + 1} of ${lines.length} · ${l.title}`;
+      line.textContent = l.say().split('|').map((x) => x.trim()).filter(Boolean).join(' ');
+      note.textContent = v ? `Already recorded (${v.dur.toFixed(1)} s). Recording again replaces it.` : 'Press Record, or the space bar, then read the line. Press again when you finish.';
+      go.textContent = 'Record'; go.disabled = false; clock_.textContent = '';
+      back.disabled = i === 0; skip.disabled = i === lines.length - 1; skip.hidden = single; back.hidden = single;
+    };
+    const step = (n) => { if (rec?.state === 'recording' || busy) return; i = Math.max(0, Math.min(lines.length - 1, i + n)); show(); };
+    const level = () => {
+      const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf);
+      let pk = 0; for (const x of buf) pk = Math.max(pk, Math.abs(x));
+      const c = meter.getContext('2d'), w = meter.width, hh = meter.height, db = Math.max(0, 1 + Math.log10(pk + 1e-6) / 3);
+      c.clearRect(0, 0, w, hh); c.fillStyle = '#26363e'; c.fillRect(0, 0, w, hh);
+      c.fillStyle = pk > 0.95 ? '#ff6a33' : '#7bd389'; c.fillRect(0, 0, w * db, hh);
+      if (rec?.state === 'recording') clock_.textContent = ((performance.now() - t0) / 1000).toFixed(1) + ' s';
+      raf2 = requestAnimationFrame(level);
+    };
+    const toggle = async () => {
+      if (busy) return;
+      if (rec?.state === 'recording') { rec.stop(); return; }
+      chunks = []; rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 256000 } : undefined);
+      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      rec.onstop = async () => {
+        const l = lines[i], type = rec.mimeType || mime || 'audio/webm', blob = new Blob(chunks, { type });
+        busy = true; go.disabled = true; go.textContent = 'Cleaning up'; note.textContent = '';
+        try {
+          await saveVoice(l.key, l.say(), blob, 'recording.' + (type.includes('mp4') ? 'm4a' : 'webm'));
+          if (single || i === lines.length - 1) { toast(single ? 'Saved' : 'Every line is recorded'); busy = false; d.close(); return; }
+          i++; busy = false; show();
+        } catch (e) { busy = false; show(); note.textContent = e.message; }
+      };
+      rec.start(); t0 = performance.now(); go.textContent = 'Stop'; note.textContent = 'Recording. Read the line, then press Stop or the space bar.';
+    };
+    go.onclick = toggle;
+    d.addEventListener('keydown', (e) => { if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); toggle(); } });
+    document.body.append(d); d.showModal(); go.focus(); show(); level();
+  }
+
   function footagePart() {
     const need = shotsNeeded(P), missing_ = need.filter((k) => !P.footage[k]), extra = Object.keys(P.footage).filter((k) => !need.includes(k));
     const tile = (k) => {
@@ -363,7 +448,7 @@ async function studio(id) {
         h('div.top', {}, h('label', {}, h('input', { type: 'checkbox', checked: b.on, onchange: (e) => { o.on = e.target.checked; touch(); fill(); } }), b.title),
           o.say != null || o.cap != null ? h('button.link', { onclick: () => { delete o.say; delete o.cap; touch(); fill(); } }, 'Use the draft') : null),
         b.on ? h('div.f', {}, h('textarea', { value: b.say, rows: 2, 'aria-label': 'Spoken', placeholder: 'Nothing spoken', oninput: (e) => { o.say = e.target.value; touch(); }, onfocus: () => seekTo(b.key) }),
-          b.key === 'end' ? null : h('textarea.cap', { value: b.cap, rows: 2, 'aria-label': 'On screen', placeholder: 'No caption', oninput: (e) => { o.cap = e.target.value; touch(); }, onfocus: () => seekTo(b.key) })) : null);
+          b.key === 'end' ? null : h('textarea.cap', { value: b.cap, rows: 2, 'aria-label': 'On screen', placeholder: 'No caption', oninput: (e) => { o.cap = e.target.value; touch(); }, onfocus: () => seekTo(b.key) }), voiceRow(b.key, () => o.say ?? b.say, b.title, fill)) : null);
     }));
     fill();
     return box;

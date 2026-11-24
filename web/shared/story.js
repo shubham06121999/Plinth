@@ -131,7 +131,7 @@ export function plan(p, { format = p.film.format, durations = {} } = {}) {
     if (o.head != null && o.head !== '') scene.head = o.head;
     if (o.say != null) scene.say = o.say;
     if (p.film.light !== 'arc') scene.light = LIGHT[p.film.light] ?? s.light;
-    const voiced = p.film.voice !== 'none' && clean(scene.say);
+    const voiced = p.film.voice === 'own' ? !!durations[s.key] : p.film.voice !== 'none' && clean(scene.say);
     const est = durations[s.key] ?? (voiced ? spoken(scene.say).split(/\s+/).length / 2.1 : 0);
     scene.dur = Math.round(Math.max(s.base, est ? est + 1.1 : 0) * 30) / 30;
     scene.start = t;

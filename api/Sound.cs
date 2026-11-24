@@ -32,7 +32,7 @@ public static class Sound
 
     public static async Task<JsonArray> Voices()
     {
-        var a = new JsonArray();
+        var a = new JsonArray { new JsonObject { ["id"] = "own", ["label"] = "Your own voice, recorded or uploaded" } };
         if (Footage.VoiceReady) foreach (var (id, label) in Kokoro) a.Add(new JsonObject { ["id"] = "kokoro:" + id, ["label"] = label });
         foreach (var v in await MacVoices()) a.Add(new JsonObject { ["id"] = v.Id, ["label"] = $"{v.Id}, Mac voice ({v.Lang})" });
         return a;
@@ -42,10 +42,19 @@ public static class Sound
         double.TryParse((await Proc.Run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], ct)).Trim(), out var d) ? d : 0;
 
     /// Speaks each entry ({ key, parts: [] }) and reports where each part of it ends.
-    public static async Task<Dictionary<string, Line>> Speak(string voice, JsonArray entries, string dir, CancellationToken ct)
+    public static async Task<Dictionary<string, Line>> Speak(JsonObject p, string voice, JsonArray entries, string dir, CancellationToken ct)
     {
         var res = new Dictionary<string, Line>();
         if (voice == "none" || entries.Count == 0) return res;
+        if (voice == "own")
+        {
+            // Lines without a recording stay silent.
+            var media = Store.Media(p.Str("id"));
+            foreach (var e in entries.OfType<JsonObject>())
+                if (p.Obj("voiceover")[e.Str("key")] is JsonObject r && File.Exists(Path.Combine(media, r.Str("file"))))
+                    res[e.Str("key")] = new(Path.Combine(media, r.Str("file")), r.Num("dur"), r.Arr("parts").Select(x => x!.GetValue<double>()).ToArray());
+            return res;
+        }
         if (voice.StartsWith("kokoro:"))
         {
             var name = voice[7..];
@@ -114,15 +123,18 @@ public static class Sound
         }
         var n = lines.Count;
         var voiced = n > 0;
+        // A real recording is already cleaned and has its own room: leave its character alone.
+        var natural = film.Str("voice") == "own";
         var mix = new List<string>();
         if (voiced)
         {
             f.Add($"{string.Concat(Enumerable.Range(0, n).Select(i => $"[v{i}]"))}amix=inputs={n}:normalize=0,apad,atrim=0:{T}," +
-                "highpass=f=85,equalizer=f=260:t=q:w=1.1:g=-2.5,equalizer=f=3200:t=q:w=1:g=2.5,treble=g=1.5:f=8000,aexciter=amount=1.1:drive=5:freq=7200:ceil=15000," +
-                "acompressor=threshold=-20dB:ratio=3.2:attack=6:release=110:makeup=5dB,aformat=channel_layouts=stereo,asplit=3[va][vb][vc]");
+                (natural ? "highpass=f=70,acompressor=threshold=-20dB:ratio=1.8:attack=12:release=180:makeup=3dB,"
+                         : "highpass=f=85,equalizer=f=260:t=q:w=1.1:g=-2.5,equalizer=f=3200:t=q:w=1:g=2.5,treble=g=1.5:f=8000,aexciter=amount=1.1:drive=5:freq=7200:ceil=15000,acompressor=threshold=-20dB:ratio=3.2:attack=6:release=110:makeup=5dB,") +
+                "aformat=channel_layouts=stereo,asplit=3[va][vb][vc]");
             // A short, quiet room around the voice keeps it from sounding pasted on.
-            f.Add("[vc]highpass=f=400,aecho=0.8:0.5:23|41|67:0.16|0.11|0.07,volume=0.35[room]");
-            f.Add("[va][room]amix=inputs=2:normalize=0[vox]");
+            f.Add(natural ? "[vc]anullsink" : "[vc]highpass=f=400,aecho=0.8:0.5:23|41|67:0.16|0.11|0.07,volume=0.35[room]");
+            f.Add(natural ? "[va]anull[vox]" : "[va][room]amix=inputs=2:normalize=0[vox]");
             mix.Add("[vox]");
         }
         if (music != null)
